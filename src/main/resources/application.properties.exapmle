@@ -1,0 +1,52 @@
+spring.application.name=AgriBora
+spring.datasource.password=Mose@198
+spring.datasource.username=postgres
+spring.datasource.url=jdbc:postgresql://localhost:5432/agri-bora
+spring.datasource.driver-class-name=org.postgresql.Driver
+spring.jpa.show-sql=true
+spring.jpa.hibernate.ddl-auto=update
+
+openweather.api.key=286f71c112520be0609bdb6544bff920
+germini.api.key=AIzaSyCXy1t9tMxHPqWwEmNgXkcerBQd8sacsh4
+json.secret.key=8f4zSdFg!9xLPwzj@x1ReT67#sYbTgVq
+
+# Email configuration
+spring.mail.host=smtp.gmail.com
+spring.mail.port=587
+spring.mail.username=mosezachary198@gmail.com
+spring.mail.password=Mosezac12055!!!
+spring.mail.properties.mail.smtp.auth=true
+spring.mail.properties.mail.smtp.starttls.enable=true
+
+# Africa's Talking
+africastalking.username=YOUR_AT_USERNAME
+africastalking.apiKey=YOUR_AT_API_KEY
+HOST= dpg-d3lmuijipnbc73a4vjsg-a
+db=agri_bora
+url=postgresql://agri_bora_user:tfdURuF8r6c7J2ejazRQ8VMtqXfHg3NI@dpg-d3lmuijipnbc73a4vjsg-a.oregon-postgres.render.com/agri_bora
+
+spring.datasource.password=${DB_PASSWORD}
+spring.datasource.username=${DB_USERNAME}
+spring.datasource.url=${DB_URL}
+spring.datasource.driver-class-name=org.postgresql.Driver
+spring.jpa.show-sql=true
+spring.jpa.hibernate.ddl-auto=update
+
+openweather.api.key=${OPENWEATHER_API_KEY}
+germini.api.key=${GERMINI_API_KEY}
+json.secret.key=${JSON_SECRET_KEY}
+
+# Email configuration
+spring.mail.host=smtp.gmail.com
+spring.mail.port=587
+spring.mail.username=mosezachary198@gmail.com
+spring.mail.password=Mosezac12055!!!
+spring.mail.properties.mail.smtp.auth=true
+spring.mail.properties.mail.smtp.starttls.enable=true
+
+# Africa's Talking
+africastalking.username=YOUR_AT_USERNAME
+africastalking.apiKey=YOUR_AT_API_KEY
+
+
+
