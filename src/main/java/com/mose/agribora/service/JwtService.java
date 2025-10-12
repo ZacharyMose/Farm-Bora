@@ -18,7 +18,7 @@ import java.util.function.Function;
 @Service
 public class JwtService {
 
-    @Value("${json.secret.key}")
+    @Value("${jwt.secret-key}")
     private  String JWT_SECRET; // Must be 32+ chars for HS256
 
     // Extract username from token
