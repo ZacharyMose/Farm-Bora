@@ -14,10 +14,7 @@ import java.util.Map;
 
 @Service
 public class GerminiService {
-
-    // NOTE: Store API keys securely in environment variables or @Value
-    @Value("${germini.api.key}")
-    private String API_KEY;
+    private String API_KEY = "AIzaSyCXy1t9tMxHPqWwEmNgXkcerBQd8sacsh4";
     private final String MODEL_NAME = "models/gemini-2.5-flash";
     private final String GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1/"
             + MODEL_NAME + ":generateContent?key=" + API_KEY;
@@ -96,7 +93,8 @@ public class GerminiService {
                 weather.getMain().getHumidity(),      // int -> %d
                 rainfall,                             // String -> %s
                 profile.getFarmingType(),             // String -> %s
-                profile.getSpecification()            // String -> %s
+                profile.getAnimalType(),
+                profile.getCropType()// String -> %s
         );
 
         // Build Gemini request body
@@ -114,26 +112,201 @@ public class GerminiService {
             ResponseEntity<Map> response = restTemplate.postForEntity(GEMINI_API_URL, entity, Map.class);
 
             Map<String, Object> body = response.getBody();
-            if (body == null) return "❌ API returned empty body.";
+            if (body == null) return "API returned empty body.";
 
             List<Map<String, Object>> candidates = (List<Map<String, Object>>) body.get("candidates");
-            if (candidates == null || candidates.isEmpty()) return "⚠️ No prediction generated.";
+            if (candidates == null || candidates.isEmpty()) return "No prediction generated.";
 
             Map<String, Object> contentMap = (Map<String, Object>) candidates.get(0).get("content");
             List<Map<String, Object>> parts = (List<Map<String, Object>>) contentMap.get("parts");
 
             return (parts != null && !parts.isEmpty())
                     ? parts.get(0).get("text").toString()
-                    : "⚠️ Prediction generated but text is empty.";
+                    : "Prediction generated but text is empty.";
 
         } catch (HttpClientErrorException e) {
             return String.format("❌ HTTP Error: %s. Response: %s",
                     e.getStatusCode(),
                     e.getResponseBodyAsString().substring(0, Math.min(200, e.getResponseBodyAsString().length())) + "...");
         } catch (ResourceAccessException e) {
-            return "❌ Network error: Could not reach Gemini API.";
+            return "Network error: Could not reach Gemini API.";
         } catch (Exception e) {
-            return "❌ Unexpected error: " + e.getMessage();
+            return "Unexpected error: " + e.getMessage();
         }
     }
+
+    public String getRearingStages(String location, WeatherData weather, Profile profile) {
+        RestTemplate restTemplate = new RestTemplate();
+
+        // **Clean-up:** Safely extract rainfall, converting it to String if it's a Number (assuming getRain is usually a Number/Double/String in the DTO)
+        String rainfall = "0";
+        if (weather.getRain() != null) {
+            rainfall = String.valueOf(weather.getRain());
+        }
+
+        // 1. Construct the detailed user prompt (already very good!)
+        String prompt = String.format("""
+            You are an advanced agricultural AI model that provides detailed livestock rearing insights based on weather and farm type.
+            Given the following data:
+            - Location: %s
+            - Weather: Temp = %.1f°C, Humidity = %d%%, Rainfall = %s mm
+            - Type of farming: %s (%s)
+
+            Generate a structured livestock rearing report that includes:
+            
+            1. **Rearing Stage Overview**
+                - Identify which rearing stage the livestock are likely in (e.g., early growth, breeding, fattening, or lactation).
+                - Describe the physiological and nutritional focus at this stage.
+
+            2. **Environmental Conditions & Comfort**
+                - Describe how current temperature, humidity, and rainfall affect livestock health, productivity, or stress levels.
+                - Suggest environmental control actions (e.g., shelter cooling, ventilation, or bedding management).
+
+            3. **Feeding & Nutrition**
+                - Recommend specific feeding strategies, quantities, and supplements for this stage.
+                - Suggest local feed options or substitutes where relevant.
+
+            4. **Health & Disease Management**
+                - Highlight potential disease risks or stress factors based on the weather.
+                - Suggest 2–3 preventive actions (e.g., vaccination, deworming, hydration management).
+
+            5. **AI Summary Recommendations**
+                - A short paragraph summarizing key actions for optimal livestock performance.
+
+            Style guidelines:
+            - Keep tone farmer-friendly and actionable.
+            - Avoid overly technical veterinary language.
+            - Output should be clear, sectioned, and visually readable for a dashboard or SMS summary.
+            """,
+                location,
+                weather.getMain().getTemp(),
+                weather.getMain().getHumidity(),
+                rainfall,
+                profile.getFarmingType(),
+                profile.getAnimalType(),
+                profile.getCropType()
+        );
+
+        // 2. Build the CORRECT Gemini request body (Structure: contents -> parts -> text)
+        Map<String, Object> textPart = Map.of("text", prompt);
+        Map<String, Object> contentBlock = Map.of("parts", List.of(textPart));
+        Map<String, Object> requestBody = Map.of("contents", List.of(contentBlock));
+
+        // 3. Setup Request Entity
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(requestBody, headers);
+
+        // 4. Execute API Call with robust error handling
+        try {
+            ResponseEntity<Map> response = restTemplate.postForEntity(GEMINI_API_URL, requestEntity, Map.class);
+
+            Map<String, Object> body = response.getBody();
+            if (body == null) {
+                return "API returned success but with an empty body.";
+            }
+
+            // 5. Safely Parse the Response
+            List<Map<String, Object>> candidates = (List<Map<String, Object>>) body.get("candidates");
+            if (candidates == null || candidates.isEmpty()) {
+                return "No rearing guidance generated. (Check safety settings).";
+            }
+
+            // Drill down: candidates[0].content.parts[0].text
+            Map<String, Object> contentMap = (Map<String, Object>) candidates.get(0).get("content");
+            List<Map<String, Object>> parts = (List<Map<String, Object>>) contentMap.get("parts");
+
+            // Final check and return
+            return (parts != null && !parts.isEmpty())
+                    ? parts.get(0).get("text").toString()
+                    : "Generated response was empty.";
+
+        } catch (HttpClientErrorException e) {
+            // Catches 4xx/5xx HTTP errors (e.g., 400 Bad Request, 401 Unauthorized)
+            String errorBody = e.getResponseBodyAsString();
+            String truncatedError = errorBody.substring(0, Math.min(200, errorBody.length())) + "...";
+            return String.format("❌ HTTP Error (%s): %s", e.getStatusCode(), truncatedError);
+        } catch (ResourceAccessException e) {
+            // Catches network/connectivity errors (e.g., timeout)
+            return "Network Error: Could not reach Gemini API. Check connectivity.";
+        } catch (Exception e) {
+            // General catch-all for any other unexpected exceptions (e.g., JSON parsing)
+            return "Unexpected error during API processing: " + e.getMessage();
+        }
+    }
+
+
+
+    public String generateSmartAlert(String location, Profile profile) {
+        RestTemplate restTemplate = new RestTemplate();
+
+        // Build the AI prompt
+        String prompt = String.format("""
+        You are a smart agricultural monitoring assistant.
+        A farmer in %s has encountered the following situation:
+        "%s"
+
+        Farmer profile:
+        - Type of farming: %s
+        - Specification: %s
+
+        Generate a short but informative alert message to notify the farmer.
+        Your alert should:
+        - Be clear and professional.
+        - Give 1–2 key actions or advice.
+        - Mention the urgency if needed.
+        - Be written in simple language suitable for SMS, email, or app notifications.
+
+        Example output:
+        ---
+        "Low Soil Moisture detected in Nakuru. Please irrigate your crops today to prevent stress."
+        or
+        "🌧️ Heavy rainfall expected in Kisumu. Ensure proper drainage to avoid root rot."
+        ---
+        """,
+                location,
+                profile.getFarmingType(),
+                profile.getAnimalType(),
+                profile.getCropType()
+        );
+
+        // Gemini API Request Body
+        Map<String, Object> part = Map.of("text", prompt);
+        Map<String, Object> content = Map.of("parts", List.of(part));
+        Map<String, Object> requestBody = Map.of("contents", List.of(content));
+
+        // Setup headers
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("Authorization", "Bearer " + API_KEY);
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+
+        try {
+            ResponseEntity<Map> response = restTemplate.postForEntity(GEMINI_API_URL, entity, Map.class);
+            Map<String, Object> body = response.getBody();
+
+            if (body == null) return "Empty Gemini API response.";
+
+            List<Map<String, Object>> candidates = (List<Map<String, Object>>) body.get("candidates");
+            if (candidates == null || candidates.isEmpty()) return "No alert generated.";
+
+            Map<String, Object> contentMap = (Map<String, Object>) candidates.get(0).get("content");
+            List<Map<String, Object>> parts = (List<Map<String, Object>>) contentMap.get("parts");
+
+            return (parts != null && !parts.isEmpty())
+                    ? parts.get(0).get("text").toString()
+                    : "Generated alert text is empty.";
+
+        } catch (HttpClientErrorException e) {
+            return String.format("HTTP Error: %s. Response: %s",
+                    e.getStatusCode(),
+                    e.getResponseBodyAsString().substring(0, Math.min(200, e.getResponseBodyAsString().length())) + "...");
+        } catch (ResourceAccessException e) {
+            return "Network error: Could not reach Gemini API.";
+        } catch (Exception e) {
+            return "Unexpected error: " + e.getMessage();
+        }
+    }
+
+
 }

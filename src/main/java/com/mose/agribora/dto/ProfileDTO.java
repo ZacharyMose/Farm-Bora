@@ -1,18 +1,17 @@
 package com.mose.agribora.dto;
 
-import lombok.Builder;
-import lombok.Data;
+import com.mose.agribora.entity.Location;
+import lombok.*;
 
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 @Builder
 public class ProfileDTO {
-    private Long id;
+    private String cropType;
+    private String animalType;
     private String location;
+    private String role;
     private String farmingType;
-    private String specification;
-
     private Long userId;
-    private String userName;
-    private String userEmail;
-    private String userPhoneNumber;
 }
